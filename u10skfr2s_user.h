@@ -33,7 +33,7 @@ Note: at the beginning, this check is supposed to be done by the caller for a su
  
  ========================== entries
 
-SKFR2II* Skfr2GetP();
+SKFR2II* Skfr2GetZhePointer();
  first and compulsory call to get the exchange pointer.
  Null pointer is error
  
@@ -46,6 +46,7 @@ int skfr2kaku(int opt);// same for a sukaku described in the exchange area
 At the start, this is done by the caller, the DLL makes only structural controls
  
 */
+
  struct SKFR2II{
 	char mode_sudoku_sukaku;	// 0 for sudoku, 1 for sukaku
 	char puz[82];				// given puz string mode (dot for a non given)
@@ -54,4 +55,9 @@ At the start, this is done by the caller, the DLL makes only structural controls
 	int Er,EP,ED;				// rating as of Sudoku Explainer
 	// filters for the process
 	int min_er,only_er,min_ed,max_er;  
- };
+ }*pskfr2;
+
+// init and get exchange area pointer
+extern "C" __declspec(dllimport) SKFR2II* Skfr2GetZhePointer();
+// puz to rate back 1 if fail
+extern "C" __declspec(dllimport) int Skfr2p(char * p); 
