@@ -207,7 +207,6 @@ void SOLVE::SolveSerate(char* ze) {
 		if (sv81w.DoEr56()) continue;
 		//serate.isbs23 = IsBandStack23(1);
 		if (sv81w.DoEr62()) continue;
-		break;
 #ifdef SEROUT
 		sv81w.ImageCandidatsShort();
 #endif
@@ -220,12 +219,15 @@ void SOLVE::SolveSerate(char* ze) {
 			if (serate.isybiv && sv81w.DoEr6ycy(67)) continue;
 			//if (serate.isybiv && sv81w.DoEr6ych(67)) continue;
 			if (serate.activedigits && sv81w.DoEr6x(68)) continue;
-			if (serate.isybiv && sv81w.DoEr6ycy(68)) continue;
 			if (serate.isybiv && sv81w.DoEr6ych(68)) continue;
+			if (serate.isybiv && sv81w.DoEr6ycy(68)) continue;
 			if (serate.activedigits && sv81w.DoEr6x(69)) continue;
-			if (serate.isybiv && sv81w.DoEr6ycy(69)) continue;
 			if (serate.isybiv && sv81w.DoEr6ych(69)) continue;
+			if (serate.isybiv && sv81w.DoEr6ycy(69)) continue;
+			if (serate.isybiv && sv81w.DoEr6ych(70)) continue;
+			if (serate.isybiv && sv81w.DoEr6ycy(70)) continue;
 		}
+		break;
 		if (0) {
 			if (sv81w.DoEr70()) continue;
 			if (sv81w.DoEr7x(71)) continue;
@@ -720,7 +722,6 @@ int SOLV81::DoEr36U(int iu) {// naked triplet in unit
 			}
 		}
 	}
-	if (cleandone) cout << iu + 1 << " unit active NP3 " << endl;
 	return  cleandone;
 }
 int SOLV81::DoEr36() {// Naked_triplet
@@ -809,10 +810,6 @@ int SOLV81::DoEr40U(int iu) {// hidden triplet
 				}
 			}
 		}
-	}
-	if (cleandone) {
-		//cout << iu + 1 << " unit active HP3 " << endl;
-		//ImageCandidatsShort();
 	}
 
 	return  cleandone;
@@ -952,7 +949,6 @@ int SOLV81::DoEr50U(int iu) {// naked quad in unit
 			}
 		}
 	}
-	if (cleandone) cout << iu + 1 << " unit active NP4 " << endl;
 	return  cleandone;
 }
 int SOLV81::DoEr50() {// Naked_quad
@@ -1066,11 +1062,6 @@ int SOLV81::DoEr54U(int iu) {// hidden quad
 			}
 		}
 	}
-	if (cleandone) {
-		//cout << iu + 1 << " unit active HP4 " << endl;
-		//ImageCandidatsShort();
-	}
-
 	return  cleandone;
 }
 int SOLV81::DoEr54() {// hidden_triplet

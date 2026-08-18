@@ -17,9 +17,9 @@ struct ER65S {
 		digit,rating,nlim,step,iret;
 	//________ cycle and chain start/end search
 	void Cy_search(int ca, int cb,  BF128 cebf, int n);
-	void CyDoElims();
+	void CyDoElims(int ispot);
 	void Ch_search(int ca, int cb, BF128 cebf, int n);
-	void ChDoElims();
+	void ChDoElims(int ispot);
 
 	BF128 Get_cell_biv(int cell) {
 		BF128 wr; wr.SetAll_0();
@@ -69,16 +69,14 @@ void ER65S::XCH::Initcy(int eca, int ecb, BF128 cebf, int n) {
 		(this + 1)->DoStepCy();
 	}
 }
-void ER65S::CyDoElims() {
+void ER65S::CyDoElims(int ispot) {
 	iret = 1;
 	solve.sv81w.Clean(digit, zeab);
-	NameBf128List(" clean zeab", zeab);
-	for (int i = 0; i < nlim; i++) {
+	for (int i = 0; i < ispot; i++) {
 		XCH& s = xch[i],sn= xch[i+1];
 		BF128 e = (elims & cell_z3x[sn.ck]) & cell_z3x[s.ca];
 		if (e.isNotEmpty()) {
 			solve.sv81w.Clean(digit, e);
-			NameBf128List(" clean e ", e);
 
 		}
 	}
@@ -96,34 +94,27 @@ void ER65S::CyDoElims() {
 //_________cycle  recursive loop n steps max 
 void ER65S::XCH::DoStepCy() {
 	if (ser65.iret)return;//finished 
-	int debug = 0;
 	XCH& o = *(this - 1);	*this = o;	ispot++;
 	BF128 xk = ser65.dfb & cell_z3x[o.ca];
 	xk -= txk; txk |= xk;
-	if (debug > 1)NameBf128List(" xk in step ", xk);
 	// find new assigned in bi values
 	while ((ck = xk.getFirstCell()) >= 0) {
 		xk.Clear_c(ck);
 		int cb = tcellsrcb[ck] & ser65.ubiv, iu;
-		if (debug)cout << Char27out(cb)
-			<< " get ubiv  " << cell_names[ck] << " sp " << ispot
-			<< " lim " << lim << endl;
 		BF128 w = (ser65.dfb & cell_z3x[ck]) - txk;
 		w.Clear_c(o.ca);
-		if (debug > 1)NameBf128List(" w ", w);
 		while (cb) {
 			bitscanforward(iu, cb);
 			cb ^= 1 << iu;
 			BF128 wu = w & units3xBM[iu];
 			if (wu.isEmpty()) continue;// safety
 			ca = wu.getFirstCell();
-			if (debug > 1)NameBf128List(" wu ", wu);
 			if (ca != target) {
 				if (ispot >= lim)continue;
 				(this + 1)->DoStepCy();
 				continue;
 			}
-			ser65.CyDoElims();
+			ser65.CyDoElims(ispot);
 			return;
 		}
 	}
@@ -155,14 +146,14 @@ void ER65S::XCH::Initch(int eca, int ecb, BF128 cebf, int n) {
 		(this + 1)->DoStepCh();
 	}
 }
-void ER65S::ChDoElims() {
+void ER65S::ChDoElims(int ispot) {
 	iret = 1;
 	solve.sv81w.Clean(digit, zeab);
 	elims -= zeab;
 #ifdef SEROUT
 	cout << " valid x chain digit " << digit + 1;
 	NameBf128List(" elims chain ", zeab);
-	for (int i = 0; i <= nlim; i++) {
+	for (int i = 0; i <= ispot; i++) {
 		XCH& s = xch[i];
 		cout << "~" << cell_names[s.ck] << " " << cell_names[s.ca] << " ";
 		cout << endl;
@@ -172,34 +163,27 @@ void ER65S::ChDoElims() {
 //_________ chain recursive loop n steps max 
 void ER65S::XCH::DoStepCh() {
 	if (ser65.iret)return;//finished 
-	int debug = 0;
 	XCH& o = *(this - 1);	*this = o;	ispot++;
 	BF128 xk = ser65.dfb & cell_z3x[o.ca];
 	xk -= txk; txk |= xk;
-	if (debug>1)NameBf128List(" xk in step ", xk);
 	// find new assigned in bi values
 	while ((ck = xk.getFirstCell()) >= 0) {
 		xk.Clear_c(ck);
 		int cb = tcellsrcb[ck] & ser65.ubiv, iu;
-		if (debug )cout << Char27out(cb)
-			<< " get ubiv  " << cell_names[ck]<< " sp " << ispot 
-			<<" lim "<<lim << endl;
 		BF128 w = (ser65.dfb & cell_z3x[ck]) - txk;
 		w.Clear_c(o.ca);
-		if (debug>1)NameBf128List(" w ", w);
 		while (cb) {
 			bitscanforward(iu, cb);
 			cb ^= 1 << iu;
 			BF128 wu = w & units3xBM[iu];
 			if (wu.isEmpty()) continue;// safety
 			ca = wu.getFirstCell();
-			if (debug>1)NameBf128List(" wu ", wu);
 			if (ca != target) {
 				if (ispot >= lim)continue;
 				(this + 1)->DoStepCh();
 				continue;
 			}
-			ser65.ChDoElims();
+			ser65.ChDoElims(ispot);
 		}
 	}
 }
@@ -209,10 +193,8 @@ void ER65S::XCH::DoStepCh() {
 #endif
 
 int SOLV81::Er6x() {// look for X chains
-	int debug = 0;
 	int iret = 0;
 	//work on an elim start not in unit
-	if(debug)cout << "er6x rating " << ser65.rating << endl;
 	int ce, ca, cb;// cell elim to try
 	BF128 x = ser65.elims, rx = x;
 	while ((ce = x.getFirstCell()) >= 0) {
@@ -230,26 +212,18 @@ int SOLV81::Er6x() {// look for X chains
 				if ((ser65.zeab & rx) != ser65.zeab) 	continue;// not a cycle elim				
 				int ubs = tcellsrcb[cb];
 				if (uas & ubs) {
-					if (debug) {
-						cout << " possible start Xcycle "
-							<< cell_names[ca] << " " << cell_names[cb];
-						NameBf128List(" cell elims ", ser65.zeab);
-					}
 					int nst[4] = { 2, 3, 4, 9 }, ns = nst[ser65.rating - 65];
 					ser65.iret = 0;
 					ser65.Cy_search(ca, cb, ser65.zeab, ns);
 					// stop at first
-					if (ser65.iret) {						
-						if (debug)cout << "seen x cycle ok" << endl;
-						return 1;
-					}
+					if (ser65.iret) 	return 1;
+					
 				}
 			}
 		}
 	}
 	if (ser65.rating == 65) return 0;
 	// no active cycle try chain
-	//NameBf128List(" all elims ", x);
 nextelims: {
 	x = ser65.elims;
 	while ((ce = x.getFirstCell()) >= 0) {
@@ -267,15 +241,9 @@ nextelims: {
 					ser65.zeab = zea & cell_z3x[cb];
 					if ((ser65.zeab & rx) != ser65.zeab) continue;// not a chain elim					
 					int nst[4] = { 1,2,3,5 }, ns = nst[ser65.rating - 66];
-					if (debug) {
-						cout<<ns << " possible start Xcchain "
-							<< cell_names[ca] << " " << cell_names[cb];
-						NameBf128List(" cell elims " , ser65.zeab);
-					}
 					ser65.iret = 0;
 					ser65.Ch_search(ca, cb, ser65.zeab, ns);
 					if(ser65.iret){
-						if (debug)cout << "seen x chain ok " << cell_names[ca] << " " << cell_names[cb] << endl;
 						// stop if new assign expected
 						if ((ser65.dfb& ser65.zeab).isNotEmpty())	return 1;
 						iret++;
@@ -287,15 +255,12 @@ nextelims: {
 	}
 
 	}
-	//cout << "end chains iret= " << iret << endl;
 	return iret;
 }
 int SOLV81::DoEr6xD(int d, int r) {
 	ser65.elims = solve.rclean1[d];
 	if (ser65.elims.isEmpty()) return 0;
 	ser65.digit = d;	ser65.rating = r;
-	//ImageOne(d);
-	//NameBf128List("Elims list:", ser65.elims);
 #ifdef SEROUT
 	ImageOne(d);
 	NameBf128List("Elims list:", ser65.elims);
@@ -311,6 +276,7 @@ int SOLV81::DoEr6xD(int d, int r) {
 	return Er6x();
 }
 int SOLV81::DoEr6x(int rat) {
+	if (rat < 64 || rat>69) return 0;// safety current limit
 	int iret = 0;
 	for (int i = 0; i < 9; i++)
 		if (serate.activedigits & (1 << i)) {

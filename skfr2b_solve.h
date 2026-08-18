@@ -1,3 +1,4 @@
+#include "skfr2c_solveSerate.h"
 #include "skfr2c_solv81_cpp.h"
 
 //===================================                solve functions
@@ -36,14 +37,12 @@ void SOLVE::SetsBuild() {
 int SOLVE::SolveUnits2c() {
 	uint32_t cleandone = 0;
 	for (int iu = 0; iu < 27; iu++) {
-		//if (opp & 4)cout << "try iu =" << iu+1 << endl;
 		uint32_t bitiu = 1 << iu;
 		BF128 uc = sv81w.unsolved_cells & units3xBM[iu];
 		BF128 uc2 = uc & solve.sets.c2345[0];
 		if (uc2.Count96() < 2) continue;
 		while (1) {
 			int c1 = uc2.getFirstCell(), c1v = solve.sv81w.cells[c1];
-			//if (opp & 4)cout << " try cell " << c1 + 1 << endl;
 			uc2.Clear_c(c1);
 			BF128 uc2b = uc2;
 			int tc[10], ntc = uc2b.Table3X27(tc);
@@ -54,7 +53,6 @@ int SOLVE::SolveUnits2c() {
 				int d1, d2;
 				bitscanforward(d1, c1v);
 				bitscanreverse(d2, c1v);
-				if (opp & 4)cout << iu + 1 << " " << d1 + 1 << " " << d2 + 1 << " iu digits to see cells" << endl;
 				DSETS& ds1 = solve.sets.ds[d1], & ds2 = solve.sets.ds[d2];
 				uint32_t uds1 = ds1.d234m.bf.u32[0],
 					uds2 = ds2.d234m.bf.u32[0],udsc=uds1&uds2;
@@ -62,13 +60,11 @@ int SOLVE::SolveUnits2c() {
 				BF128 cx; cx.SetAll_0(); cx.Set_c(c1); cx.Set_c(c2);
 				BF128 clx = ds1.rcb[iu] - cx;
 				if (clx.isNotEmpty()) {
-					if (opp & 4)cout << "clean d1 iu="<<iu << endl;
 					cleandone = 1;
 					Clean(d1, clx);
 				}
 				clx = ds2.rcb[iu] - cx;
 				if (clx.isNotEmpty()) {
-					if (opp & 4)cout << "clean d2 iu=" << iu << endl;
 					cleandone = 1;
 					Clean(d2, clx);
 				}
@@ -77,7 +73,6 @@ int SOLVE::SolveUnits2c() {
 		}
 	}
 	if (cleandone) {
-		cout << "cleandone on cells loop" << endl;
 		return 1;
 	}
 	return  0;
@@ -85,7 +80,6 @@ int SOLVE::SolveUnits2c() {
 int SOLVE::SolveUnits2h() {
 	uint32_t cleandone = 0;
 	for (int iu = 0; iu < 27; iu++) {
-		//if (opp & 4)cout << "try iu =" << iu + 1 << endl;
 		uint32_t bitiu = 1 << iu;
 		BF128 uc = sv81w.unsolved_cells & units3xBM[iu];
 
@@ -98,27 +92,20 @@ int SOLVE::SolveUnits2h() {
 			if (!(udsc & bitiu) )	continue;// must be both pair in unit
 			BF128 sd1 = ds1.rcb[iu], sd2 = ds2.rcb[iu];
 			if (sd1 != sd2) continue;// not same cells
-			if (opp & 4)cout << iu + 1 << " " << d1 + 1 << " " << d2 + 1 << " go clean" << endl;
-
 			int c1 = sd1.getFirstCell(), c2 = sd1.getLastCell();
 			int v1 = solve.sv81w.cells[c1]& ~fl ,
 				v2 = solve.sv81w.cells[c2] & ~fl;
 			if (v1) {
-				if (opp & 4)cout << "clean c1 "<<c1 << endl;
 				cleandone = 1;
 				CleanCell(c1,v1);
 			}
 			if (v2) {
-				if (opp & 4)cout << "clean c2 "<<c2 << endl;
 				cleandone = 1;
 				CleanCell(c2, v2);
 			}
 		}
 	}
-	if (cleandone) {
-		cout << "cleandone on hidden pairs loop" << endl;
-		return 1;
-	}
+	if (cleandone) 	return 1;	
 	return  0;
 }
 int SOLVE::SolveUnits3c() {
@@ -215,7 +202,6 @@ int SOLVE::SolveUnits3h() {
 #endif
 //______________ solve any to clear in one floor
 int SOLVE::SolveF1(int opt,int modeserate) {// Solve one floor in SLG
-	if (opp & 4) cout << "entry solve f1" << endl;
 	int iret = 0;
 	SLG slg; slg.InitFromSolve();
 	for (int idig = 0; idig < 9; idig++) {
@@ -251,7 +237,6 @@ int SOLVE::SolveF1(int opt,int modeserate) {// Solve one floor in SLG
 }
 //______________ solve any to clear in one unit
 int SOLVE::SolveU1(int modeserate) {// Solve all one unit
-	if (opp & 4) cout << "entry solve u1" << endl;
 	int iret = 0;
 	for (int iu = 0; iu < 27; iu++) {// 27 unit
 		//cout << "u1 iu " <<iu+1<< endl;
@@ -447,7 +432,6 @@ struct WUR {
 
 }wur;
 int SOLVE::SolveUR() {// select first all 2 digits cells bivalues
-	//cout << "entry solveUR " << endl;
 	wur.svr= sv81w; wur.svf = sv81w;
 	wur.x = sets.c2345[0];// cells bi values
 	while (wur.x.Count96() > 1) {
@@ -455,7 +439,6 @@ int SOLVE::SolveUR() {// select first all 2 digits cells bivalues
 		wur.digs = wur.svr.cells[wur.cell];
 		bitscanforward(wur.d1, wur.digs);
 		bitscanreverse(wur.d2, wur.digs);
-		//cout << " try cell " << wur.cell + 1 << " "<<wur.d1+1 << " " << wur.d2 + 1 << endl;
 		wur.x2d = (wur.svr.dm[wur.d1] & wur.svr.dm[wur.d2])
 			& wur.svr.unsolved_cells;
 		wur.my2d = wur.x2d & wur.x;
@@ -638,7 +621,6 @@ void SOLVE::SolveUR_b() {//  base row or col
 	y.Clear_c(cell1);
 	BF128 yr = y & units3xBM[row], yc = y & units3xBM[col + 9];
 	BF128 yrc = yr | yc;
-	//cout << "yrc count = " << yrc.Count96() <<" " << yr.Count96() << " " << yc.Count96() << endl;
 	if (yrc.isEmpty()) return;;// not a base 2 in row or 2 in col
 	wur.x -= yrc;// clear all cells of this potential UR UL as start
 	if (yrc.Count96() == 2) {//type 1 UR if  
@@ -664,10 +646,8 @@ void SOLVE::SolveUR_b() {//  base row or col
 			BF128 wr = wur.x2dbs & units3xBM[r], wrb = wr & wur.my2d;
 			if (wr.Count96() == 2) {// one elem or UR1 to see
 				int cell3 = wr.getFirstCell(), cell4 = wr.getLastCell();
-				//cout << "ur  seen rbase  " << wur.cell + 1 << endl;
 				if (wrb.isNotEmpty()) {// UR1
 					wur.x.Clear_c(cell4); SolveUR4(cell2, cell4, cell1, cell3);
-					//cout << " turn to ur1" << endl;
 					continue;
 				}
 				continue;
@@ -797,4 +777,3 @@ int SOLVE::IsBandStack23(int serate ) {// Solve all cells2/3v as sets
 	}
 	return iret;
 }
-#include "skfr2c_solveSerate.h"

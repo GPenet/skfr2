@@ -34,16 +34,13 @@ struct ERYY {
 // must have elims digit/ unit 
 int SOLV81::DoEr6ycy(int rat) {
 	if (rat < 66 || rat>70) return 0;// safety
-	int debug = 0 ;
-	int nst[5] = { 3,5,7,9,20 },	ns = nst[rat - 66];
-	if (debug)cout << "DoEr6ycy " << rat << " ns "<<ns << endl;
+	int nst[5] = { 3,4,6,8,20 },	ns = nst[rat - 66];
 	seryy.rating = rat;	seryy.iret = 0;
 	memcpy(seryy.rclean1, slgybiv.rclean1, 9 * sizeof seryy.rclean1[0]);
 	// rclean can have plenty ofg derived eliminations
 	for (int id = 0; id < 9; id++) {
 		BF128 wde = seryy.rclean1[id];
 		if (wde.isEmpty()) continue;
-		if (debug) { cout << " for digit " << id + 1;		NameBf128List(" elims ", wde); }
 		seryy.digit = id; seryy.elimsd = wde;
 		for (int iu = 0; iu < 27; iu++) {
 			BF128 wdeu=wde & units3xBM[iu];
@@ -58,17 +55,11 @@ int SOLV81::DoEr6ycy(int rat) {
 				if (df2.Count96() != 2)continue;// to see later small windows for more
 			}
 			int ca = df2.getFirstCell(), cb = df2.getLastCell();
-			if (debug) {
-				cout << "pot y cycle start d=" << id + 1 << " cells "
-					<< cell_names[ca] << " " << cell_names[cb];
-				NameBf128List(" for elims ", wdeu);	
-			}
 			seryy.zeab = wdeu;			seryy.wbu = df2;
 			seryy.iret = 0;
 			seryy.Cy_search(ca, cb, ns);
 			// stop at first
 			if (seryy.iret){
-				if (debug)cout << "seen ycycle ok" << endl;
 				serate.SetRating(rat);
 				return 1;
 			}
@@ -79,14 +70,10 @@ int SOLV81::DoEr6ycy(int rat) {
 
 void ERYY::Cy_search(int eca, int ecb, int n) {
 	ca = eca; cb = ecb;
-	int debug = 0;
-	if (debug)cout << " Cy_search " << cell_names[ca] << " "
-		<< cell_names[cb] << " d " << digit + 1 << endl;
 	nlim = n; step = 0;
 	ych[0].Initcy(ca, cb,zeab, digit,n);// ca on cb off
 }
 void ERYY::YCH::Initcy(int eca, int ecb, BF128 cebf, int d,int n) {
-	int debug = 0;
 	SOLV81& p = solve.sv81w;
 	memset(this, 0, sizeof ych[0]);
 	// first ca off -> cb on (target)
@@ -98,20 +85,16 @@ void ERYY::YCH::Initcy(int eca, int ecb, BF128 cebf, int d,int n) {
 }
 void ERYY::YCH::DoStepCy() {
 	if (seryy.iret)return;//finished
-	int debug = 0;
 	SOLV81& p = solve.sv81w;
 	YCH& o = *(this - 1);	*this = o;	ispot++;	
-	if (debug > 1)cout << "start ispot=" << ispot << " " << o.digit + 1 << " " << cell_names[o.c1] << endl;
 	// New digit
 	{
 		register int v = p.cells[o.c1]; v &= ~(1 << o.digit);
 		bitscanforward(digit, v);
-		if (debug)cout << " new digit " << digit + 1 << endl;
 	}
 	// new biv cells seen by digit/cell, killed digits 
 	BF128 seen= (p.dm[digit] & cell_z3x[o.c1]) & p.ccm[1];
 	seen -= tcc; // no cell re used
-	if (debug > 1)NameBf128List(" seen in step ", seen);
 	if (seen.On_c(target)) {
 		seryy.CyDoElims(ispot);
 		return;
@@ -129,21 +112,15 @@ void ERYY::CyDoElims(int ispot) {
 	for (int i = 0; i < ispot; i++) cout << cell_names[ych[i].c1]<<" ";
 		cout << cell_names[cb] << endl;
 #endif
-	int debug = 0;
 	SOLV81& p = solve.sv81w;
 	iret = 1;
 	p.Clean(digit, zeab);
-	if(debug)NameBf128List("clean zeab", zeab);
 	for (int i = 0; i < ispot; i++) {
 		YCH& s = ych[i], sn = ych[i + 1];
 		int d = sn.digit;
 		BF128 e = (rclean1[d] & cell_z3x[sn.c1]) & cell_z3x[s.c1];
 		if (e.isNotEmpty()) {
 			solve.sv81w.Clean(d, e);
-			if (debug) {
-				cout << "clean digit " << d + 1;
-				NameBf128List(" cells ", e);
-			}
 		}
 	}
 
@@ -152,17 +129,14 @@ void ERYY::CyDoElims(int ispot) {
 //==========================  y chain search
 int SOLV81::DoEr6ych(int rat) {
 	if (rat < 68 || rat>70) return 0;// safety
-	int debug = 0;
-	int nst[5] = { 3,5,7,9,20 },ns = nst[seryy.rating - 68],
+	int nst[5] = { 3,4,6,8,20 },ns = nst[rat - 68],
 		iret = 0;
-	if (debug)cout << "DoEr6ych " << rat << " ns " << ns << endl;
 	seryy.rating = rat;
 	//memcpy(seryy.rclean1, slgybiv.rclean1, 9 * sizeof seryy.rclean1[0]);
 	// rclean can have plenty of derived eliminations
 	for (int id = 0; id < 9; id++) {
 		BF128 wde = seryy.rclean1[id];
 		if (wde.isEmpty()) continue;
-		if (debug) { cout << " for digit " << id + 1;	NameBf128List(" elims ", wde); }
 		seryy.digit = id; seryy.elimsd = wde;
 		int ce;
 		BF128 x = wde,	df2a= dm[id] & ccm[1],df2;
@@ -178,15 +152,9 @@ int SOLV81::DoEr6ych(int rat) {
 					BF128 we = (dm[id] & cell_z3x[ca]) & cell_z3x[cb];
 					if ((we & wde) != we) continue;// all seen if an AIC is there
 					// this can be the start Ychain
-					if (debug) {
-						cout << " y chain start " << id + 1 
-							<< cell_names[ca] << " " << cell_names[cb];
-						NameBf128List(" for elims ", we);
-					}
 					seryy.zeab = we;			seryy.iret = 0;
 					seryy.Ch_search(ca, cb, ns);
 					if (seryy.iret) {
-						if (debug)cout << "seen chain ok " << cell_names[ca] << " " << cell_names[cb] << endl;
 						// stop if new assign expected
 						if ((df2a & we).isNotEmpty()) {
 							serate.SetRating(rat);
@@ -195,22 +163,19 @@ int SOLV81::DoEr6ych(int rat) {
 						iret++;
 					}
 				}
-			}	
+			}
+
 		}
 	}	
-	if (seryy.iret) 		serate.SetRating(rat);
+	if (iret) 		serate.SetRating(rat);
 	return iret;
 }
 void ERYY::Ch_search(int eca, int ecb, int n) {
-	int debug = 0;
 	ca = eca; cb = ecb;
-	if (debug)cout << " Ch_search " << cell_names[ca] << " "
-		<< cell_names[cb] << " d " << digit + 1 << endl;
 	nlim = n; step = 0;
 	ych[0].Initch(ca, cb, zeab, digit, n);// ca on cb off
 }
 void ERYY::YCH::Initch(int eca, int ecb, BF128 cebf, int d, int n) {
-	int debug = 0;
 	SOLV81& p = solve.sv81w;
 	memset(this, 0, sizeof ych[0]);
 	// first ca off -> cb on (target)
@@ -222,20 +187,16 @@ void ERYY::YCH::Initch(int eca, int ecb, BF128 cebf, int d, int n) {
 }
 void ERYY::YCH::DoStepCh() {
 	if (seryy.iret)return;//finished
-	int debug = 0;
 	SOLV81& p = solve.sv81w;
 	YCH& o = *(this - 1);	*this = o;	ispot++;
-	if (debug > 1)cout << "start ispot=" << ispot << " " << o.digit + 1 << " " << cell_names[o.c1] << endl;
 	// New digit
 	{
 		register int v = p.cells[o.c1]; v &= ~(1 << o.digit);
 		bitscanforward(digit, v);
-		if (debug)cout << " new digit " << digit + 1 << endl;
 	}
 	// new biv cells seen by digit/cell, killed digits 
 	BF128 seen = (p.dm[digit] & cell_z3x[o.c1]) & p.ccm[1];
 	seen -= tcc;// no cell re used
-	if (debug > 1)NameBf128List(" seen in step ", seen);
 	if (seen.On_c(target)) {
 		seryy.ChDoElims(ispot);
 		return;
@@ -253,9 +214,7 @@ void ERYY::ChDoElims(int ispot) {
 	for (int i = 0; i < ispot; i++) cout << cell_names[ych[i].c1]<<" ";
 		cout << cell_names[cb] << endl;
 #endif
-	int debug = 0;
 	SOLV81& p = solve.sv81w;
 	iret = 1;
 	p.Clean(digit, zeab);
-	if (debug)NameBf128List("clean zeab", zeab);
 }
