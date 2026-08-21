@@ -17,7 +17,7 @@ void SOLV81::InitSlg(int* g) {
 int SOLV81::Assign(int dig, int cell) {
 #ifdef SEROUT
 	if(serate.er>=SEROUT)
-	cout << "tt-> assign " << dig + 1 << " " << cell + 1 << endl;
+	cout << "tt-> assign " << dig + 1 << cell_names[cell] << endl;
 #endif
 	loop = 1;
 	if(dig<0 || cell<0)return 1; // bug

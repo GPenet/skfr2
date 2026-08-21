@@ -4,7 +4,7 @@
 struct ERYY {
 	struct YCH  {// for one step expand
 		BF128 tcc;//cum cells used  
-		int ispot, target, digit,c1, lim;
+		int ispot,  digit,c1, lim;
 		void Initcy(int eca, int ecb, BF128 ecebf, int d,int n);
 		void DoStepCy();
 		void Initch(int eca, int ecb, BF128 ecebf, int d,int n);
@@ -21,6 +21,7 @@ struct ERYY {
 		dmu[27]; // field per unit
 	int ubiv,// unit with a bi value (bit field)
 		digit,unit, ca,cb, rating, // start
+		dtarget, ctarget,
 		nlim, step,iret;
 	void Cy_search(int ca, int cb, int n);
 	void CyDoElims(int ispot);
@@ -71,13 +72,14 @@ int SOLV81::DoEr6ycy(int rat) {
 void ERYY::Cy_search(int eca, int ecb, int n) {
 	ca = eca; cb = ecb;
 	nlim = n; step = 0;
+	dtarget = digit; ctarget = ecb;
 	ych[0].Initcy(ca, cb,zeab, digit,n);// ca on cb off
 }
 void ERYY::YCH::Initcy(int eca, int ecb, BF128 cebf, int d,int n) {
 	SOLV81& p = solve.sv81w;
 	memset(this, 0, sizeof ych[0]);
 	// first ca off -> cb on (target)
-	target = ecb; lim = n; digit = d;
+	lim = n; digit = d;
 
 	tcc.Set_c(eca); c1 = eca;
 	tcc |= cebf;// be sure not to use elim
@@ -95,8 +97,9 @@ void ERYY::YCH::DoStepCy() {
 	// new biv cells seen by digit/cell, killed digits 
 	BF128 seen= (p.dm[digit] & cell_z3x[o.c1]) & p.ccm[1];
 	seen -= tcc; // no cell re used
-	if (seen.On_c(target)) {
-		seryy.CyDoElims(ispot);
+	if (seen.On_c(seryy.ctarget)) {
+		if(seryy.dtarget!=digit)// must be good digit to loop
+			seryy.CyDoElims(ispot);
 		return;
 	}
 	if (ispot >= lim) return;
@@ -173,13 +176,14 @@ int SOLV81::DoEr6ych(int rat) {
 void ERYY::Ch_search(int eca, int ecb, int n) {
 	ca = eca; cb = ecb;
 	nlim = n; step = 0;
+	dtarget = digit; ctarget = ecb;
 	ych[0].Initch(ca, cb, zeab, digit, n);// ca on cb off
 }
 void ERYY::YCH::Initch(int eca, int ecb, BF128 cebf, int d, int n) {
 	SOLV81& p = solve.sv81w;
 	memset(this, 0, sizeof ych[0]);
 	// first ca off -> cb on (target)
-	target = ecb; lim = n; digit = d;
+	lim = n; digit = d;
 
 	tcc.Set_c(eca); c1 = eca;
 	tcc |= cebf;// be sure not to use elim
@@ -197,8 +201,9 @@ void ERYY::YCH::DoStepCh() {
 	// new biv cells seen by digit/cell, killed digits 
 	BF128 seen = (p.dm[digit] & cell_z3x[o.c1]) & p.ccm[1];
 	seen -= tcc;// no cell re used
-	if (seen.On_c(target)) {
-		seryy.ChDoElims(ispot);
+	if (seen.On_c(seryy.ctarget)) {
+		if (seryy.dtarget != digit)// must be good digit  
+			seryy.ChDoElims(ispot);
 		return;
 	}
 	if (ispot >= lim) return;
