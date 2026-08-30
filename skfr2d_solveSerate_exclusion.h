@@ -133,7 +133,7 @@ int SOLV81::DoEr62() {//aligned pair exclusion
 }
 
 int SOLV81::DoEr75() {//aligned pair exclusion
-	cout << "entry new DoEr75()  "  << endl;
+	//cout << "entry new DoEr75()  "  << endl;
 	int iret = 0;
 	// as of skfr 
 	for (ser62.ibs = 0; ser62.ibs < 6; ser62.ibs++) {

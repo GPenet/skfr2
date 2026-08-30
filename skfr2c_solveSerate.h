@@ -59,6 +59,13 @@ the longer chain, the higher rating.
 USHORT  steps[] = { 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128,
 			192, 256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192 };
 
+int GetDifficultyIndex(int v) {
+	if (v <= 4) return 0;
+	if (v > 8192) return 23;
+	for (int i = 1; i < 23; i++)if (v <= steps[i]) return i;
+	return 23;
+}
+
 struct TWASS {// temp storage cells to assign
 	int t[20][2], nt;
 	void Add(int c, int d) {
@@ -227,34 +234,22 @@ void SOLVE::SolveSerate(char* ze) {
 			if (serate.isybiv && sv81w.DoEr6ych(70)) continue;
 			if (serate.isybiv && sv81w.DoEr6ycy(70)) continue;
 		}
-		break;
-		if (0) {
+		// entries XY bi values 
+		{
 			if (sv81w.DoEr70()) continue;
 			if (sv81w.DoEr7x(71)) continue;
+
+		}
+		// entry triplet Nishio
+		{
 			if (sv81w.DoEr75()) continue;// triplet
 			if (serate.activedigits && sv81w.DoEr75X()) continue;
+		}
+		break;
+		if (0) {
 			if (sv81w.DoEr80()) continue;// multi
 		}
-		if (serate.activedigits && sv81w.DoEr75X()) continue;
-
-		//sv81w.ImageCandidatsShort();
-		/*
-
-
-		//______________ Band/Stack elims
-		if (IsBandStack23()) {
-			if (opp & 1)cout << " band/stack  active " << endl;
-			continue;
-		}
-
-		//______________ xy chains  elims
-		if (IsAllBiv()) {
-			if (opp & 1)cout << " xy chains  active " << endl;
-			continue;
-		}
-
-
-			*/
+				
 		break; // not solved 
 	}
 	skfr2ii.Er = serate.er; skfr2ii.EP = serate.ep; skfr2ii.ED = serate.ed;
@@ -1081,5 +1076,6 @@ int SOLV81::DoEr70() {
 	return xybiv.Init();
 }
 int SOLV81::DoEr7x(int rat) {
-	return xybiv.Er71();
+	if(rat==71) 	return xybiv.Er71();
+	return 0;
 } 
