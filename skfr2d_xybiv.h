@@ -1,72 +1,39 @@
 #pragma once
 
-/*
-dm is a classical map as in the brute force 3 bands per digits
-crm is a cell/row/digit map
- one row per crm
- each row 9 cells (3x3)
- each cell 9 digits
-*/
-char cout1[6], cout2[6], cout3[6];// area to print cands
-class CAND {
-	uint16_t dc; // digit,cell
-public:
-	inline void Set(UCHAR d, UCHAR c) {
-		register uint16_t x = c;
-		x <<= 8; x |= d; dc = x;
-	}
-	inline void Set(uint16_t d, uint16_t c) {
-		register uint16_t x = c;
-		x <<= 8; x |= d; dc = x;
-	}
-	inline void Set(int d, int c) {
-		register uint16_t x = c;
-		x <<= 8; x |= d; dc = x;
-	}
-	inline void Set(uint32_t d, uint32_t c) {
-		register uint16_t x = (uint16_t)c;
-		x <<= 8; x |= (uint16_t)d; dc = x;
-	}
-	inline uint32_t Digit() { return dc & 0xff; }
-	inline uint32_t Cell() { return (dc >> 8) & 0xff; }
-	char* Out(char* ws) {// ws must be length >=6
-		ws[5] = 0;
-		ws[0] = (char)(Digit()+'1');
-		memcpy(&ws[1], cell_names[Cell()], 4);
-		return ws;
-	}
-};
-class DM9 {// pm to store a property
-	BF128 dm[9];
-public:
-	inline void Init() { memset(dm, 0, sizeof dm);}
-	inline void Set(int d, int c) { dm[d].Set_c(c); }
-	inline int On(int d, int c) { return dm[d].On_c(c); }
-	inline int Off(int d, int c) {return dm[d].Off_c(c);}
-	inline BF128 Getd(int d) { return dm[d]; }
-	void Orx(DM9& o) {
-		for (int i = 0; i < 9; i++)dm[i] |= o.dm[i];
-	}
-	inline void Ordx(int d,BF128& x) {
-		dm[d] |=x;
-	}
-};
-class CDPM {// candidate PM for expand
-	BF128 dm[9], crm[9];
-public:
-	inline void Add(CAND& cd) {
-		dm[cd.Digit()].Set_c(cd.Cell());	}
-	inline void Add(int d,int c) {
-		dm[d].Set_c(c);
-	}
-	inline int On(CAND& cd) {
-		return dm[cd.Digit()].On_c(cd.Cell());	}
-	inline int Off(CAND& cd) {
-		return dm[cd.Digit()].Off_c(cd.Cell());
-	}
-};
 
+int cptgoaic = 0;
 
+struct XYELIM {
+	int ntot,stopifelim,// elim belongs to a bi value
+		netbivcands,// same as ntot at the end count of bivcands
+		ce_d,ce_c,// cand digit cell
+		tcb[20], ntcb,		// cells bivalues
+		td0[9], ntd0,// digit biv in cell
+		tdbs[20], ntdbs;// digit starts seen
+	CAND celim;
+	BIVCANDS  etbivcands[30];
+	inline void Init(CAND cd) {	celim = cd; ce_d = cd.Digit(); ce_c = cd.Cell();	}
+	inline void Add0(int dd){ td0[ntd0++] = dd; }
+	inline void Add(BF128 wdn, BF128 wcsd) {
+		ntdbs = wdn.Table3X27(tdbs);// starts digit bi values
+		ntcb = wcsd.Table3X27(tcb);// starts cells bi values
+		ntot = ntd0 + ntdbs + ntcb;
+	}
+	void Status() {
+		cout << "for elim " << ce_d + 1 << cell_names[ce_c] << "tot starts "
+			<< ntot << " in cell " << ntd0 << " dig biv " << ntdbs << " cell biv " << ntcb
+			<< " stopifelim " << stopifelim << endl;
+		if (1) {
+			int d1, c1, d2, c2;
+			for (int i = 0; i < netbivcands; i++) {
+				etbivcands[i].Get(d1, c1, d2, c2);
+				cout << d1 + 1 << cell_names[c1] << "-" << d2 + 1 << cell_names[c2] << " ";
+			}
+			cout<< endl;
+		}
+		}
+
+}txyelim[50],xyew;
 struct XYBIV {// sets links group for bi values
 	struct SDB {
 		BF128 dbf;
@@ -86,7 +53,8 @@ struct XYBIV {// sets links group for bi values
 		}
 	}sdb[200];
 	struct XYS {
-		CDPM cdpm;
+		DM9 cdpm;
+		BF128 used_cells;// check for no loop
 		CAND cand1, cand2;
 		int ispot;
 		void Init(XYS& o) {
@@ -95,10 +63,11 @@ struct XYBIV {// sets links group for bi values
 		}
 		void DoStep();
 		int DoNewDC(int d, int c);// new digit in cell not biv
-		int DoNewD(int d, BF128 w);// new digit biv
-		int DoNewDcom(int da, int ca );// new digit bivalue after first
-		int DoNewC(int d, BF128 w);// nex cell biv
-	 }xys[20];
+		inline int DoNewD(int d, BF128 w);// new digit biv
+		inline int DoNewDcom(int da, int ca );// new digit bivalue after first
+		inline int DoNewC(int d, BF128 w);// nex cell biv
+
+	 }xys[21];
 
 	struct CSPOT {
 		BF128 ass;// 
@@ -186,23 +155,33 @@ struct XYBIV {// sets links group for bi values
 		}
 	}dspot[200];
 	BF128 csets,cset_d[9] , dig_nodes[9],dig_m ;
+	BF128 all_target_cells;
 	int nsdb, ncsets;
-	int iret,elimdone,nlim,rating,dtarget,ctarget,edebug;
+	int iret, stopifelim, // if elim, assign expected
+		elimdone,myelimdone,// elim seen for one elim
+		endelimdone,// elim seen with stop if elim
+		rating,dtarget,ctarget,edebug,index_all_targets;
 	//============================ list of sets/links
 	BF128 lfield[9], orf[9], andf[9], allcells, cellslinks;
 	BF128 rclean1[9];// back clean in serate mode 
 
 	SOLV81  sv,*p;	
-
 	//=============== elim and error starts
 	CAND cand_elim;
-	int celim_d, celim_c;
+	BIVCANDS bc1, bc2;
+	int celim_d, celim_c,ielim,ielim_last;
 	int i2,// choices for the 2 starts
-		tcb[5], ntcb,		// cells bivalues
-		td0[5], ntd0,// digit biv in cell
-		tdbs[5], ntdbs;// digit starts seen
+		tcb[20], ntcb,		// cells bivalues
+		td0[9], ntd0,// digit biv in cell
+		tdbs[20], ntdbs;// digit starts seen
 	CAND st_cand1, st_cand2;
 	int st_d1, st_c1, st_d2, st_c2, end_d1, end_c1, end_d2, end_c2;
+	// expand control and elims to table
+	int exp_rat, new_quick_rat,
+		exp_lim, exp_lim_e, 
+		nexp_telims,nexp_gotelims,ntxyelim;
+	CAND exp_telims[50],exp_gotelims[50];
+
 
 	void AddClink(BF128 *bfd, int c, int d) {
 		int v = p->cells[c] & ~(1 << d),dig;
@@ -231,26 +210,49 @@ struct XYBIV {// sets links group for bi values
 		}
 		return w;
 	}
-	int Init();	
+	int IsTarget(int d, int c) {
+		if (all_target_cells.Off_c(c)) return 0;
+		for (int i = index_all_targets; i < xyew.netbivcands; i++) {
+			CAND cd = xyew.etbivcands[i].GetB();
+			if (cd.Digit() == d && cd.Cell() == c) 	return 1;			
+		}
+		return 0;
+	}
+	int IsTarget(int d,BF128 toff) {
+		dtarget = d;
+		for (int i = index_all_targets; i < xyew.netbivcands; i++) {
+			CAND cd = xyew.etbivcands[i].GetB();
+			int dd = cd.Digit();
+			ctarget = cd.Cell();
+			if (dd != d)continue;
+			if (toff.On_c(ctarget)) {
+				CAND cd2 = xyew.etbivcands[i].GetA();
+				end_d1= cd2.Digit();end_c1= cd2.Cell();
+				return 1;	
+			}
+		}
+		return 0;
+	}	
+	inline void PrintElim(int ispot);
+	int Init();
 	int Er71();
 	void Er71B(int cpt);// after a valid perm for cells 
-	int Er71C();// after all perms done
-	void Er7a(int i); // start is another digit in cell
-	void Er7_b(int i); // end digit biv
-	void Er7_c(int i); // end cell biv
-	void Er7b(int i); // start is digit bi value
-	void Er7c(int i); // start is cell bi value
-	void GoAIC();
+
+	int Er7x();// after all perms done
+	int Er7xmode(int mode);//  guven search case
+	int Er7xmodeGo();//  guven search case
+
+	int Er7xStarts();// find all starts keep if >=2
+	int Er7aw(); // all starts  
 	void DoElims(int ispot);
 	void NewSol(char* zs,int cpt=0) {
 		BF128 wor[9]; memset(wor,0,sizeof wor);
 		for (int i = 0; i < 81; i++) {
 			int d = zs[i];		if (d > 8)continue;
-			//if (cpt < 5)
-				//cout << "new " << d + 1 << cell_names[i] << endl;
 			AddClink(wor, i, d);// cell killed
 			wor[d] |= cell_z3x[i];
 		}
+
 		for (int i = 0; i < 9; i++) {
 			orf[i] |= lfield[i] & wor[i];
 			andf[i]&= wor[i];
@@ -258,35 +260,41 @@ struct XYBIV {// sets links group for bi values
 	}
 	int Elims() {
 		int aig = 0;
-		if(0)for (int i = 0; i < 9; i++) {
-			lfield[i] -= orf[i];
-			if (lfield[i].isNotEmpty()) {
-				cout << " assigned  for digit " << i + 1;
-				NameBf128List(" ", lfield[i]);
-			}
-		}
 		for (int i = 0; i < 9; i++) {
 			if (andf[i].isNotEmpty()) {
 				aig = 1;
-				//cout << " elims  for digit " << i + 1;
-				//NameBf128List(" ", andf[i]);
 			}
 		}		
 		return  aig;
 	}
-	void StatusBiv() {
-	//	BF128 csets,cset_d[9] , dig_nodes[9],dig_m ;
-		cout << "cset dig nodes status" << endl;
-		char ws[82]; ws[81] = 0;
-		cout << csets.String3X(ws) << " csets" << endl;
-		cout << dig_m.String3X(ws) << " dig_m" << endl << endl;
+	int GetTcand(BF128 * o,CAND* t) {
+		register int n = 0, c;
+		CAND cd;
+		for (int i = 0; i < 9; i++) {
+			BF128 w = o[i]; if (w.isEmpty())continue;
+			while ((c = w.getFirstCell())>=0) {
+				w.Clear_c(c);
+				cd.Set(i, c); 
+				if(n<50)t[n++] = cd;
 
-		for(int i = 0; i < 9;i++) if(cset_d[i].isNotEmpty())
-			cout << cset_d[i].String3X(ws) << " d " << i+1 << endl;
-		
+			}
+		}
+		return n;
+	}
+
+	void StatusBiv() {
+		cout << "cset dig nodes status" << endl;
+		NameBf128List("csets", csets);
+		NameBf128List("dig_m", dig_m);
+		char ld[5] = { 'd',' ',' ',0 };
+		for (int i = 0; i < 9; i++) if (cset_d[i].isNotEmpty()) {
+			ld[2] = i + '1'; NameBf128List(ld, cset_d[i]);
+		}
 		cout << "dig nodes" << endl;
-		for (int i = 0; i < 9; i++) if (dig_nodes[i].isNotEmpty())
-			cout << dig_nodes[i].String3X(ws) << " d " << i + 1 << endl;
+		for (int i = 0; i < 9; i++) if (dig_nodes[i].isNotEmpty()) {
+			ld[2] = i + '1'; NameBf128List(ld, dig_nodes[i]);
+
+		}
 	}
 }xybiv;
 void XYBIV::CSPOT::Init() {
@@ -357,7 +365,7 @@ int  XYBIV::Init() {
 
 	}
 
-	//StatusBiv();
+	if(debug)StatusBiv();
 	// try to find a 70 cycle potential
 	{
 		for (int i2d = 0; i2d < 36; i2d++) {
@@ -403,7 +411,7 @@ int  XYBIV::Init() {
 		}
 
 	}	
-	return 0;
+	return Er71();
 }
 int ctl = 0;
 int XYBIV::Er71() {
@@ -432,12 +440,6 @@ int XYBIV::Er71() {
 			AddClink(lfield, s.c1, d); AddClink(lfield, s.c2, d);
 		}
 		memcpy(andf, lfield, sizeof andf);
-		if (0) {
-			cout << "lfield status" << endl;
-			char ws[82]; ws[81] = 0;
-			for (int i = 0; i < 9; i++)if (lfield[i].isNotEmpty())
-				cout << lfield[i].String3X(ws) << " d=" << i+1 << endl;
-		}
 	}
 	// inital for spots cells (can be 0)
 	{
@@ -467,7 +469,7 @@ int XYBIV::Er71() {
 		CSPOT* sw = cspot;
 	iwsloop:
 		if (sw->GetNextd()) {
-			if (sw == cspot) return Er71C(); // closed
+			if (sw == cspot) return Er7x(); // closed
 			sw--; goto iwsloop;
 		}
 		if (sw->ispot >= (ncsets - 1)) {
@@ -522,10 +524,7 @@ int XYBIV::DSPOT::GetNextCell() {
 	Assign(cell2); return 0;
 }
 void XYBIV::Er71B(int cpt) {
-	//if (cpt < 77)return;
-	//if (cpt != 78)return;
 	CSPOT& s = cspot[ncsets];
-	//s.Out1(cpt);// valid perm print
 	// find all valid dsets
 	{
 		DSPOT* sw = dspot;
@@ -545,241 +544,288 @@ void XYBIV::Er71B(int cpt) {
 		goto iwsloop;
 	}
 }
-int XYBIV::Er71C() {
-	if(! Elims()) return 0;// check (and print) elims to search
-	rating = 71, elimdone = 0; nlim = 2;
-	int ca;
-	for (int i = 0; i < 9; i++) {// check each digit 
-		int stopifelim;
-		celim_d = i;
-		BF128 x = andf[i],wd=dig_nodes[i]|cset_d[i];
-		if (x.isEmpty()) continue;
-		while ((ca = x.getFirstCell()) >= 0) {
-			edebug = 0;
-			//if (i == 6 && ca == 74) edebug = 2;// 7 r9c3
-			if (edebug) cout << "debug " << edebug << " for " << i + 1 << cell_names[ca] << endl;
-			x.Clear_c(ca);
-			stopifelim = 0;
-			if(csets.On_c(ca))stopifelim = 1;
-			if (dig_nodes[i].On_c(ca))stopifelim = 1;
+//int xybivnst[5] = { 3,4,6,8, };//n pairs (ispot) 71 72 73 74 then 75
 
-			celim_c = ca;
-			cand_elim.Set(i, ca);
-			iret = 0;
-			BF128 wda = wd & cell_z3x[ca],wda2=wda;
-			if (wd.On_c(ca))wda2.Set_c(ca);
-			if (edebug) {
-				cout << i + 1 << cell_names[ca];
-				NameBf128List(" seen ", wda2);
-			}
-
-			ntd0  = 0;
-			int v = sv.cells[ca]^(1<<i),dd;// other digits
-			while (v) {// start dig biv in cell
-				bitscanforward(dd, v); v ^= (1 << dd);
-				if (dig_nodes[dd].On_c(ca)) td0[ntd0++] = dd;
-			}
-			BF128 w = dig_nodes[i] & cell_z3x[ca];
-			ntdbs=w.Table3X27(tdbs);// starts digit bi values
-			w=cset_d[i] & cell_z3x[ca];
-			ntcb= w.Table3X27(tcb);// starts cells bi values
-			int ntot = ntd0 + ntdbs + ntcb;
-			if (ntot < 2)continue;
-			// try all possible 2 starts
-			if(0)cout << celim_d + 1 << cell_names[celim_c] << "   "
-				<< ntot << " a " << ntd0 << " b " << ntdbs << " c " << ntcb 
-				<< " stopifelim "<< stopifelim << endl;
-			for (int i1 = 0; i1 < ntd0; i1++) Er7a(i1); // one other dig in  in cell
-			if (iret)if (stopifelim)break; else continue;
-			for (int i1 = 0; i1 < ntdbs; i1++)Er7b(i1); // one digit biv
-			if (iret)if (stopifelim)break; else continue;
-			for (int i1 = 0; i1 < ntcb - 1; i1++) Er7c(i1);// one cellt biv
-			if (iret)if (stopifelim)break; else continue;
-		}
-		if (iret)if (stopifelim)break;
-	}
-	if(elimdone)serate.SetRating(71);
-	return elimdone;
-}
-//==== 2 AIC starts/end
-void XYBIV::Er7a(int i) {// start another digit in cell
-	if (edebug)cout << "er7a " << i << endl;
-	st_d1 = st_d2 = td0[i];// is a digit  bivalue start
-	st_c1 = celim_c;
-	BF128 w = dig_nodes[st_d1] & cell_z3x[celim_c];// usually one cell
-	if (edebug) {
-		cout << " c1 " << cell_names[st_c1];
-		NameBf128List(" st_c2list  ", w);
-	}
-	while ((st_c2 = w.getFirstCell()) >= 0) {
-		w.Clear_c(st_c2);
-		if (IsNotBiv(st_d1, st_c1, st_c2)) continue;
-		if (edebug) 	cout << " c2 " << cell_names[st_c2] << endl;;
-		for (int i2 = i + 1; i2 < ntd0; i2++) {// second  other dig in  in cell
-			end_d1 = end_d2 = td0[i2];
-			end_c1=st_c1;
-			BF128 w2 = dig_nodes[end_d1] & cell_z3x[celim_c];// usually one cell
-			while ((end_c2 = w2.getFirstCell()) >= 0) {
-				w2.Clear_c(end_c2);
-				if (IsNotBiv(end_d1, end_c1, end_c2)) continue;
-				GoAIC();
-			}
-		}
-		for (int i2 = 0; i2 < ntdbs; i2++)Er7_b(i2); // second  digit biv		
-		for (int i2 = 0; i2 < ntcb; i2++)Er7_c(i2); // second  cell biv
-	}
-}
-void XYBIV::Er7_b(int i) {//end digit bi value not elim not first
-	//cout << "er7_b " << i << endl;
-	end_c1 = tdbs[i];// first cell of the bivalue for digit celim_d
-	if (edebug)cout << "er7_b " << i << "end_c1 " << cell_names[end_c1] << endl;
-	end_d1 = end_d2 = celim_d;
-	BF128 w2 = dig_nodes[end_d1] & cell_z3x[end_c1];// usually one cell
-	w2.Clear_c(celim_c); w2.Clear_c(st_c1); w2.Clear_c(st_c2);
-	while ((end_c2 = w2.getFirstCell()) >= 0) {
-		w2.Clear_c(end_c2);
-		if (IsNotBiv(end_d1, end_c1, end_c2)) continue;
-		GoAIC();
-	}
-}
-void XYBIV::Er7_c(int i) {//end cell bi value
-	//cout << "er7_c " << i << endl;
-	end_c1 = end_c2=tcb[i];
-	if (edebug)cout << "er7_c " << i << "end_c1 "<< cell_names[end_c1] 
-		<< " st_c1 " << cell_names[st_c1] << " st_c2 " << cell_names[st_c2] << endl;
-	if (end_c1 == st_c1 || end_c1 == st_c2) return;
-	end_d1= celim_d;
-	int v = sv.cells[end_c1] ^ (1 << end_d1);
-	if (edebug)cout << Char9out(v) << " v" << endl;
-	if (!v)return;// safety against redundancy
-	bitscanforward(end_d2, v);
-	if (edebug)cout << "er7_c go"   << endl;
-	GoAIC();
-}
-void XYBIV::Er7b(int i) {//start digit bi value not elim
-	if(edebug)cout << "er7b " << i << endl;
-	st_c1 = tdbs[i];// first cell of the bivalue for digit celim_d
-	st_d1 = st_d2 = celim_d;
-	BF128 w2 = dig_nodes[st_d1] & cell_z3x[st_c1];// usually one cell
-	w2.Clear_c(celim_c);
-	if (edebug) {
-		cout << " c1 " << cell_names[st_c1];
-		NameBf128List(" st_c2list  ", w2);
-	}
-	while ((st_c2 = w2.getFirstCell()) >= 0) {
-		w2.Clear_c(st_c2);
-		if (IsNotBiv(st_d1, st_c1, st_c2)) continue;
-		/*
-		// must be bi value in unit
-		int units = tcellsrcb[st_c1] & tcellsrcb[st_c2], ua, ub;
-		bitscanforward(ua, units); bitscanreverse(ub, units);
-		int na = (p->dm[st_d1] & units3xBM[ua]).Count96(),
-			nb = (p->dm[st_d1] & units3xBM[ub]).Count96();
-		if (na != 2 && nb != 2) continue;
-		*/
-		for (i2 = i + 1; i2 < ntdbs; i2++)Er7_b(i2); // second  digit biv		
-		for (int i2 = 0; i2 < ntcb; i2++)Er7_c(i2); // second  cell biv
-	}
-}
-
-void XYBIV::Er7c(int i) {//start  cell bi value
-	//cout << "er7c " << i << endl;
-	st_c1 = st_c2 = tcb[i];
-	st_d1 = celim_d;
-	int v = p->cells[st_c1] ^ (1 << st_d1);
-	bitscanforward(st_d2, v);
-	// look for a cell biv as end
-	for (i2 = i + 1; i2 < ntcb; i2++) Er7_c(i2); // second  cell biv	
-}
-void XYBIV::GoAIC() {
-	if (iret) return;// no rerundancy;
-	if(edebug)
-	cout << " goaic start " << st_d1+1 << cell_names[st_c1] 
-		<< " " << st_d2+1 << cell_names[st_c2]
-		<< " end " << end_d1+1 << cell_names[end_c1] 
-		<< " " << end_d2+1 << cell_names[end_c2]
-		<< endl;
-	XYS* s = xys;
-	memset(xys, 0, sizeof xys[0]);
-	s->cand1.Set(st_d1, st_c1);
-	s->cand2.Set(st_d2, st_c2);
-	ctarget = end_c2; dtarget = end_d2;
-	s->cdpm.Add(celim_d, celim_c);
-	//cout <<" sss " << s->cand1.Out(cout1) << " " << s->cand2.Out(cout2) << endl;
-	(++s)->DoStep();
-}
-void XYBIV::DoElims(int ispot) {
+//============== after common 71 find aliminations
+inline void XYBIV::PrintElim(int ispot) {
 #ifdef SEROUT
-	cout << " target reached ispot =" << ispot << " "
+	xyew.Status();
+	cout << serate.er << " target reached or exit ispot =" << ispot << " "
 		<< celim_d + 1 << cell_names[celim_c] << "   ";
 	for (int i = 0; i < ispot; i++) {
 		XYS& s = xys[i];
 		cout << "~" << s.cand1.Out(cout1) << "+" << s.cand2.Out(cout2) << "  ";
 	}
 	cout << "~" << dtarget + 1 << cell_names[ctarget];
-	cout << "+" << end_d1 + 1 << cell_names[end_c1] << endl;
+	cout << "+" << end_d1 + 1 << cell_names[end_c1]
+		<< " nexp_gotelims=" << nexp_gotelims << endl;
 #endif
-	iret = 1; elimdone++;
-	p->Clear(celim_d, celim_c);
+}
+
+int XYBIV::Er7xStarts() {
+	if (!Elims()) return 0;// elims in andf[9]
+	nexp_telims = GetTcand(andf, exp_telims);
+	ntxyelim = 0;
+	for (ielim = 0; ielim < nexp_telims; ielim++) {// try each elim
+		memset(&xyew, 0, sizeof xyew);// working area for new cand
+		xyew.Init(exp_telims[ielim]);// enter cand,dig,cell
+		register int d = xyew.ce_d, c = xyew.ce_c;
+		BF128  wd = dig_nodes[d] | cset_d[d];
+		if (csets.On_c(c))xyew.stopifelim = 1;
+		if (dig_nodes[d].On_c(c))xyew.stopifelim = 1;
+		BF128 wda = wd & cell_z3x[c], wda2 = wda;
+		if (wd.On_c(c))wda2.Set_c(c);
+		int v = sv.cells[c] ^ (1 << d), dd;// other digits
+		while (v) {// start dig biv in cell
+			bitscanforward(dd, v); v ^= (1 << dd);
+			if (dig_nodes[dd].On_c(c)) {// a new dig in cell 
+				xyew.Add0(dd);
+				if (10) {
+					int c2;
+					BF128 w = dig_nodes[dd] & cell_z3x[c];// usually one cell
+					while ((c2 = w.getFirstCell()) >= 0) {
+						w.Clear_c(c2);
+						if (IsNotBiv(dd, c, c2)) continue;
+						xyew.etbivcands[xyew.netbivcands++].Set(dd, c, dd, c2);
+					}
+				}
+			}
+		}
+		xyew.Add(dig_nodes[d] & cell_z3x[c], cset_d[d] & cell_z3x[c]);
+		//Add digit bi values
+		{
+			int c1, c2;
+			BF128 x = dig_nodes[d] & cell_z3x[c];
+			while ((c1 = x.getFirstCell()) >= 0) {
+				x.Clear_c(c1);
+				BF128 w2 = dig_nodes[d] & cell_z3x[c1];// usually one cell
+				w2.Clear_c(c);// no redundancy
+				while ((c2 = w2.getFirstCell()) >= 0) {
+					w2.Clear_c(c2);
+					if (IsNotBiv(d, c1, c2)) continue;
+					xyew.etbivcands[xyew.netbivcands++].Set(d, c1, d, c2);
+				}
+			}
+		}
+		// Add cells bi values 
+		{
+			int c1, d1;
+			BF128 x = cset_d[d] & cell_z3x[c];
+			while ((c1 = x.getFirstCell()) >= 0) {
+				x.Clear_c(c1);
+				int v = sv.cells[c1] ^ (1 << d);
+				if (!v)continue;// safety against redundancy
+				bitscanforward(d1, v);
+				xyew.etbivcands[xyew.netbivcands++].Set(d, c1, d1, c1);
+			}
+		}
+		if (xyew.ntot < 2)continue;
+		txyelim[ntxyelim++] = xyew;
+
+	}
+#ifdef SEROUT
+	cout << " seen starts " << ntxyelim  << endl;
+	//if( solve.step==7)
+	//for (int i = 0; i < ntxyelim; i++)txyelim[i].Status();
+
+#endif
+
+	return ntxyelim;
+}
+int XYBIV::Er7aw() {// all starts try a pair
+	exp_lim_e = exp_lim;// start with reached limit
+	celim_c = xyew.ce_c; celim_d = xyew.ce_d;
+	cand_elim.Set(celim_d , celim_c);
+	myelimdone = 0;
+	for (int i1 = 0; i1 < xyew.netbivcands-1; i1++) {
+		bc1 = xyew.etbivcands[i1];
+		bc1.Get(st_d1, st_c1, st_d2, st_c2);
+		all_target_cells.SetAll_0();
+		index_all_targets = i1 + 1;
+		int n = 0;
+		for (int i2 = index_all_targets; i2 < xyew.netbivcands; i2++) {
+			bc2 = xyew.etbivcands[i2];
+			bc2.Get(end_d1, end_c1, end_d2, end_c2);
+			if (end_d1 == st_d1 && end_c1 == st_c1) continue;
+			all_target_cells.Set_c(end_c2);
+			n++;
+		}
+		{
+			edebug = 0;
+			XYS* s = xys;
+			memset(xys, 0, sizeof xys[0]);
+			s->cand1.Set(st_d1, st_c1);		s->cand2.Set(st_d2, st_c2);
+			s->cdpm.Set(celim_d, celim_c);
+			(++s)->DoStep();
+			if (myelimdone) return 1;
+		}
+	}
+	return 0;
+}
+int XYBIV::Er7x() {
+	if (!Er7xStarts()|| (!ntxyelim) )return 0;
+#ifdef SEROUT
+	cout << "entry er7x rating  still there " << ntxyelim << endl;
+#endif
+	if (serate.er < 75) {
+		new_quick_rat = 71; 
+		if (serate.er > new_quick_rat)new_quick_rat = serate.er;
+		while (new_quick_rat < 75) {
+			if(Er7xmode(new_quick_rat)) return 1;
+			new_quick_rat++;
+		}
+		if (Er7xmode(0)) return 1;
+		return Er7xmode(7552);
+	}
+	new_quick_rat = 73; // rating is already 75 
+	if (Er7xmode(0)) return 1;
+	return Er7xmode(7552);
+	if (Er7xmode(new_quick_rat)) return 1;
+
+}
+int XYBIV::Er7xmode(int mode) {
+	//int nst[5] = { 2,4,6,8,20 };//n pairs (ispot) 71 72 73 74 then 75
+	//int erispot[7] = { 71,72,72,73,73,74,74 };// rating on ispot-2
+	switch (mode) {
+	case 71: {	exp_rat = 71; exp_lim = 2;	return Er7xmodeGo();	}
+	case 72: {	exp_rat = 72; exp_lim = 3;	return Er7xmodeGo();	}
+	case 73: { exp_rat = 73; exp_lim = 6;	return Er7xmodeGo(); }
+	case 74: { exp_rat = 74; exp_lim = 8;	return Er7xmodeGo(); }
+	case 753: {
+		exp_rat = 73; exp_lim = 6;
+		return Er7xmodeGo();
+	}
+	case 7552: {
+		exp_rat = 75; exp_lim = 20;
+		return Er7xmodeGo();
+	}
+	default: {
+		exp_rat = 75; exp_lim = 9;
+		return Er7xmodeGo();
+	}
+	}// end switch
+}
+int XYBIV::Er7xmodeGo() {
+	ielim_last = -1;//not a valid
+	nexp_gotelims = elimdone = endelimdone = iret = 0;
+	//cout << ntxyelim << " elims to try from store" << endl;
+	for (int ielim2 = 0; ielim2 < ntxyelim; ielim2++) {// try each elim stored
+		xyew = txyelim[ielim2];
+		if (!xyew.stopifelim) continue;		if (Er7aw()) 	return 1;
+	}
+	for (int ielim2 = 0; ielim2 < ntxyelim; ielim2++) {// try each elim stored
+		xyew = txyelim[ielim2];
+		if (xyew.stopifelim) continue;	Er7aw();
+	}
+	//cout << " end 7x elidone= " << elimdone << endl;
+	if (elimdone) return 1;
+	if (nexp_gotelims) {
+#ifdef SEROUT
+		cout << " elim from store " << nexp_gotelims << endl;
+#endif
+		for (int i = 0; i < nexp_gotelims; i++) {// try each elim
+			CAND cd = exp_gotelims[i];
+			p->Clear(cd.Digit(), cd.Cell());
+		}
+		serate.SetRating(exp_rat);		return 1;
+	}
+	return 0;
+}
+
+
+
+
+void XYBIV::DoElims(int ispot) {
+	PrintElim(ispot);	if (myelimdone) return;
+	exp_lim_e=ispot-1;// only lower chains for same elim
+	//int nst[5] = { 3,4,6,8,20 };//n pairs (ispot) 71 72 73 74 then 75
+	int nst[5] = { 2,4,6,8,20 };//n pairs (ispot) 71 72 73 74 then 75
+	int erispot[7] = { 71,72,72,73,73,74,74 };// rating on ispot-2
+
+	int rating = 75;	if (ispot < 3)rating = 71;
+	else if (ispot <= 8)rating = erispot[ispot-2];
+	int lim = nst[rating - 71];
+
+	if (rating == new_quick_rat) { exp_lim = lim; serate.SetRating(new_quick_rat); }
+
+	if (rating <= serate.er) {// immediate clearing
+		//cout << "immediate clearing" << endl;
+		iret = 1; elimdone++; myelimdone++;
+		p->Clear(celim_d, celim_c);
+		return;
+	}
+	if (rating < exp_rat) {
+		//cout << "lower xy rating " << rating << endl;
+		exp_rat = rating;
+		if (rating >= 71)		exp_lim = nst[rating - 71];
+		else exp_lim = 2;// safety
+		nexp_gotelims=0;	ielim_last = -1;//not a valid
+
+	}
+	if (exp_lim > 6) { exp_lim = exp_lim_e = 6; }// only one 75 searched
+	if (ielim != ielim_last) {
+		exp_gotelims[nexp_gotelims++] = cand_elim;
+		ielim_last = ielim;
+	}
 }
 
 
 
 //==============  AICs search
-
 void XYBIV::XYS::DoStep() {
-	if (xybiv.iret)return;//finished
-	int debug = xybiv.edebug;
+	if (xybiv.myelimdone)return;//finished
+	int debug = 0;
 	SOLV81& p = xybiv.sv;
-	Init( *(this - 1));	
-	if (ispot > xybiv.nlim) return;// safety
-	int d = cand2.Digit(), c = cand2.Cell(),cx= cand1.Cell();
-	// stop if target reached on
-	if (d == xybiv.dtarget && c == xybiv.ctarget) return;	
+	Init(*(this - 1));
+	if (ispot > xybiv.exp_lim_e) return;// safety
+	int d = cand2.Digit(), c = cand2.Cell(), cx = cand1.Cell();
+	used_cells.Set_c(c); used_cells.Set_c(cx);
+	// stop if target reached on or loop
+	if (c == xybiv.st_c1 && d == xybiv.st_d1) return;
+	if (xybiv.IsTarget(d, c))  return;	
 
-	if (debug > 1)cout << "xy do step start ispot=" << ispot << " "
-		<< cand2.Out(cout1)<< endl;
-	BF128 wd = (p.dm[d] & cell_z3x[c]),
-		wdc = wd & p.ccm[1],
-		wdd=wd & xybiv.dig_nodes[d];
-	// look for target reached
-	if (d == xybiv.dtarget) {
-		int ct = xybiv.ctarget;
-		if (c == ct || (wdc | wdd).On_c(ct) ){
-			xybiv.DoElims(ispot);
-			return;
-		}
+	if (debug > 1) {
+		cout << "xy do step start ispot=" << ispot << " "
+			<< cand2.Out(cout1) ;	NameBf128List(" uc ", used_cells);
 	}
-	if (debug > 1)cout << "DoNewDC(d, c)" << endl;
+	BF128 wd = (p.dm[d] & cell_z3x[c])-used_cells,
+		wdc = wd & p.ccm[1],
+		wdd = wd & xybiv.dig_nodes[d],
+		toff= (wdc | wdd)& xybiv.all_target_cells;
+	//toff.Clear_c(cx); // no way back
+	// look for target reached
+	if (toff.isNotEmpty()) {
+		if (debug) {
+			cout << ispot;	NameBf128List("target off expected", toff);
+			NameBf128List("used cells", used_cells);
+		}
+		if (xybiv.IsTarget(d,toff)) {
+			xybiv.DoElims(ispot);	return;	}
+	}
+	if (ispot >= xybiv.exp_lim_e) return;
+	if (xybiv.myelimdone) return;
 	if (DoNewDC(d, c)) return;// next digit bivalue starts  same cell
-	if (debug > 1)cout << "DoNewD()" << endl;
 	if (DoNewD(d, wdd)) return;// next possible bivalue same digit
-	if (debug > 1)cout << "DoNewC()" << endl;
 	if (DoNewC(d, wdc)) return;// next possible bi value cell
 }
 //____________ new biv is a digit biv start in last cell
-int  XYBIV::XYS::DoNewDC(int d,int c) {
-	int debug = xybiv.edebug;
-	if(debug)cout << " DoNewDC " << d + 1 << cell_names[c] << endl;
+inline int  XYBIV::XYS::DoNewDC(int d,int c) {
 	if (xybiv.dig_m.Off_c(c)) return 0;
 	{// other digit biv same cell
 		int v = xybiv.sv.cells[c], d2; v ^= 1 << d;
-		if (debug) cout<<Char9out(v) << " v go new dc" << endl;
+		//if (debug) cout<<Char9out(v) << " v go new dc" << endl;
 		while (v) {
 			bitscanforward(d2, v);	v ^= 1 << d2;
 			if (xybiv.dig_nodes[d2].Off_c(c)) continue;
-			if (debug) cout << " call com  or target for d " << d2 + 1 << endl;
-			// can be here the target 
-			if (d2 == xybiv.dtarget && c == xybiv.ctarget) {
-					xybiv.DoElims(ispot);		return 0;
-			}
+
 			DoNewDcom(d2, c);// Find the bi value
+			if (xybiv.myelimdone) return 1;
 		}
 	}	
-	return 0;
+	return xybiv.myelimdone;
 }
 //__________ new biv is a digit bi value
-int  XYBIV::XYS::DoNewD(int d, BF128 w) {
+inline int  XYBIV::XYS::DoNewD(int d, BF128 w) {
 	if (w.isEmpty()) return 0;
 	//cout << " DoNewD " << d + 1 ;
 	//NameBf128List(" for cells ", w);
@@ -788,39 +834,29 @@ int  XYBIV::XYS::DoNewD(int d, BF128 w) {
 	while ((c = w.getFirstCell()) >= 0) {
 		w.Clear_c(c); 
 		DoNewDcom(d, c);// Find the bi value
+		if (xybiv.myelimdone) return 1;
 	}
-	return 0;
+	return xybiv.myelimdone;
 }
 //__________ new digit  biv after first cell da ca 
-int  XYBIV::XYS::DoNewDcom(int da,int ca) {
-	int debug = xybiv.edebug;
-	//cout << " DoNewDcom " << da + 1 << cell_names[ca] << endl;
+inline int  XYBIV::XYS::DoNewDcom(int da,int ca) {
 	SOLV81& p = xybiv.sv;
 	int c;
-	BF128 w = (p.dm[da] & xybiv.dig_nodes[da]) & cell_z3x[ca];
-	if(debug)NameBf128List(" cells to see for biv ", w);
-	if (ispot >= xybiv.nlim) return 0;
+	BF128 w = ((p.dm[da] & xybiv.dig_nodes[da]) & cell_z3x[ca])-used_cells;
+	if (ispot >= xybiv.exp_lim) return xybiv.myelimdone;
 	while ((c = w.getFirstCell()) >= 0) {
 		w.Clear_c(c);
 		cand1.Set(da, ca); cand2.Set(da, c);
 		if (cdpm.On(cand1) || cdpm.On(cand2)) continue;
 		if (xybiv.IsNotBiv(da, ca, c)) continue;
-/*
-		// must be bi value in unit
-		int units = tcellsrcb[ca] & tcellsrcb[c],ua,ub;
-		bitscanforward(ua, units); bitscanreverse(ub, units);
-		int na = (p.dm[da] & units3xBM[ua]).Count96(),
-			nb = (p.dm[da] & units3xBM[ub]).Count96();
-		if (na != 2 && nb != 2) continue;
-*/
-		//cout << "go iret "<<xybiv.iret<< " ispot " <<ispot << endl;
 		(this + 1)->DoStep();
+		if (xybiv.myelimdone) return 1;
 	}
-	return 0;
-} 
+	return xybiv.myelimdone;
+}
 //__________ new  cell BI VALUE
-int XYBIV::XYS::DoNewC(int d,BF128 w) {
-	if (w.isEmpty()) return 0;
+inline int XYBIV::XYS::DoNewC(int d,BF128 w) {
+	if (w.isEmpty()) 	return 0;
 	SOLV81& p = solve.sv81w;
 	int c, d2;
 	while ((c = w.getFirstCell()) >= 0) {
@@ -831,9 +867,11 @@ int XYBIV::XYS::DoNewC(int d,BF128 w) {
 			bitscanforward(d2, v);
 		}
 		cand1.Set(d, c); cand2.Set(d2, c);
-		if (ispot >= xybiv.nlim) return 0;
+		if (ispot >= xybiv.exp_lim)	return xybiv.myelimdone;
+
 		if (cdpm.On(cand1) || cdpm.On(cand2)) continue;
 		(this + 1)->DoStep();
+		if (xybiv.myelimdone) return 1;
 	}
-	return 0;
+	return xybiv.myelimdone;
 }

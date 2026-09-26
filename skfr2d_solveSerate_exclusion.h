@@ -36,8 +36,9 @@ The process gives the same result as SE
 
 */
 struct SER62 {
-
-	BF128 wbs, wbs2,wbs23; //band stack unsolved/pairs
+	SLG slg;
+	BF128 wbs, wbs2,wbs23,wbs4; //band stack unsolved/pairs
+	BF128 wbs4c;
 	BF128 zbase,bs_base,xybase,xyzbase,xyseen,wbs23f; // as in skfr1
 	int cb[3];// base cells for triplet
 	BF128 wbsd, wbs2d,wbs23d; //same for digit d
@@ -45,9 +46,11 @@ struct SER62 {
 	SOLV81* ps;
 	int ibs, id, ca;// band/stack  digit cella 
 	int va,vax;
+	int cx, cy, cz, cz4, vx, vy, vz, vz4, vxy, vxyz, v4;
 	int Pat_ca(SOLV81* s);
-	int Go75bs(SOLV81* s);
-	int Go75triplet();
+	int Go75(SOLV81* s);
+	void AddCell(int c);
+	int Go75bs(); int Go75bsB();
 	void Outa() {
 		cout << "see bs " << ibs + 1 << " dig " << id + 1 << " ";
 		NameBf128List(" pairs  ", wbs2d);
@@ -131,109 +134,88 @@ int SOLV81::DoEr62() {//aligned pair exclusion
 	}
 	return iret;
 }
-
-int SOLV81::DoEr75() {//aligned pair exclusion
-	//cout << "entry new DoEr75()  "  << endl;
+/* new triplet process
+take in band stack 3 cells 2/3 digits max 4 digits
+find all seen cells hit by digits
+take one more cell same 4 digits to fill the nase
+see if one cell sees all digit 'x' of the four
+vx = ps->cells[cx];
+*/
+int SER62::Go75(SOLV81* s) {//aligned triplet exclusion
+	//cout << "entry new DoEr75()  " << endl;
+	ps = s;
 	int iret = 0;
-	// as of skfr 
-	for (ser62.ibs = 0; ser62.ibs < 6; ser62.ibs++) {
-		ser62.wbs = unsolved_cells & band3xBM[ser62.ibs];
-		ser62.wbs23 = ser62.wbs & (ccm[1]|ccm[2]);
-		if (ser62.wbs23.Count96() < 3) continue;
-		iret += ser62.Go75bs(this);
+	for (ibs = 0; ibs < 6; ibs++) {
+		wbs = ps->unsolved_cells & band3xBM[ibs];
+		wbs23 = wbs & (ps->ccm[1] | ps->ccm[2]);
+		if (wbs23.Count96() < 3) continue;
+		wbs4 =  wbs & ps->ccm[3];
+		iret += Go75bs();
 	}
-
-	return 0;
-	cout << Char9out(serate.isbs23) << " possible ER75" << endl;
-	for (ser62.ibs = 0; ser62.ibs < 6; ser62.ibs++) {
-		ser62.wbs = unsolved_cells & band3xBM[ser62.ibs];
-		ser62.wbs2 = ser62.wbs & ccm[1];
-		for (ser62.id = 0; ser62.id < 9; ser62.id++) {
-			ser62.wbsd = dm[ser62.id] & ser62.wbs;
-			ser62.wbs2d = ser62.wbsd & ccm[1];
-			if (ser62.wbs2d.Count96() < 3) continue;
-			//ser62.Outa();
-			BF128 x = ser62.wbs - ser62.wbs2d;// one extra cell  
-			while ((ser62.ca = x.getFirstCell()) >= 0) {
-				x.Clear_c(ser62.ca);
-				if (ser62.Pat_ca(this)) iret++;;
-			}
-		}
-	}
+	if (iret) serate.SetRating(75);
 	return iret;
 }
-
-int SER62::Go75bs(SOLV81* s) {
-	ps = s; int iret = 0;
-	zbase.SetAll_0();// zbase is all seen  from a wbs23 unsolved 
+int SER62::Go75bs() {
+	//cout << "try bs " << ibs + 1 << endl;
+	int iret = 0;
 	{
-		BF128 x = wbs23; register int c;
-		while ((c = x.getFirstCell()) >= 0) {
-			x.Clear_c(c);
-			zbase |= cell_z3x[c];
-		}
-	}
-	// loop on any pair of cell in zbase 
-	BF128 x = zbase;	
-	while ((cb[0] = x.getFirstCell()) >= 0) {
-		x.Clear_c(cb[0]);
-		BF128 y = x;
-		BF128 xbase; xbase.SetAll_0(); xbase.Set_c(cb[0]);
-		while ((cb[1] = y.getFirstCell()) >= 0) {
-			y.Clear_c(cb[1]);
-			xybase = xbase; xybase.Set_c(cb[1]);
-			xyseen = ((wbs23 & cell_z3x[cb[0]]) | (wbs23 & cell_z3x[cb[1]])) - xybase;
-			// we need to add an other base cell 
-			// + 2 excludig cells that are visible by the 3 base cells
-			if (xyseen.isEmpty()) continue;
-			BF128 z = xyseen;
-			while ((cb[2] = z.getFirstCell()) >= 0) {
-				z.Clear_c(cb[2]);
-				xyzbase = xybase; xyzbase.Set_c(cb[2]);
-				// seen wbs23 minimum 2
-				wbs23f = ((wbs23 & cell_z3x[cb[0]]) & cell_z3x[cb[1]]) & cell_z3x[cb[2]];
-				if (wbs23f.Count() < 2)continue;
-				iret+=Go75triplet();
+		BF128 x = wbs23;   
+		while ((cx = x.getFirstCell()) >= 0) {
+			x.Clear_c(cx);	vx = ps->cells[cx];
+			BF128 y = x;  
+			while ((cy = y.getFirstCell()) >= 0) {
+				y.Clear_c(cy);	vy = ps->cells[cy];
+				vxy = vx | vy;
+				if (_popcnt32(vxy) > 4) continue;
+				BF128 z = y;  
+				while ((cz = z.getFirstCell()) >= 0) {
+					z.Clear_c(cz);	vz = ps->cells[cz];
+					vxyz = vxy | vz;
+					if (_popcnt32(vxyz) != 4) continue;
+					//cell4 can be any cell same 2/4 digits
+					BF128 z4 = z | wbs4; 
+					while ((cz4 = z4.getFirstCell()) >= 0) {
+						z4.Clear_c(cz4);	vz4 = ps->cells[cz4];
+						v4 = vxyz | vz4;
+						if (_popcnt32(v4) != 4) continue;
+						iret += Go75bsB();
+					}
+				}
 			}
 		}
 	}
 	return iret;
 }
-int SER62::Go75triplet() {
-	// loop on permutation of potential candidate for the 3 base cells
-	int te[27], nte = wbs23f.Table3X27(te);// excl cells in table
-	int vv[3] = { 0,  0, 0 },vb[3],iret=0; // seen valid digits in base cells
-
-	vb[2] = ps->cells[cb[2]];	int d3, bit3;//cb[2] has 2/3 digits 
-	while (vb[2]) {
-		bitscanforward(d3, vb[2]);	bit3= 1 << d3;	vb[2] ^= bit3;
-
-		vb[0] = ps->cells[cb[0]];		int d1, bit1;
-		if (tcellsrcb[cb[0]] & tcellsrcb[cb[2]])vb[0] &= ~bit3;
-		while (vb[0]) {
-			bitscanforward(d1, vb[0]);	bit1 = 1 << d1;	vb[0] ^= bit1;
-
-			vb[1] = ps->cells[cb[1]]; int d2, bit2;
-			if (tcellsrcb[cb[1]] & tcellsrcb[cb[2]])vb[1] &= ~bit3;
-			if (tcellsrcb[cb[1]] & tcellsrcb[cb[0]])vb[1] &= ~bit1;
-			while (vb[1]) {
-				bitscanforward(d2, vb[1]);	bit2 = 1 << d2;	vb[1] ^= bit2;
-				int digs3=bit1|bit2|bit3,aig = 1;
-				for (int ite = 0; ite < nte; ite++) {
-					register int ve = ps->cells[te[ite]];
-					if ((ve & digs3) == ve) { aig = 0; break; }
-				}
-				if (aig) {// possible triplet
-					vv[0] |= bit1; vv[1] |= bit2; vv[2] |= bit3;		}
-			}
-		}
+void SER62::AddCell(int c) {
+	slg.tsc[slg.ntsc++] = c;
+	int v=  ps->cells[c],d;
+	BF128 wl=wbs& cell_z3x[c];
+	while (v) {
+		bitscanforward(d, v); v ^= 1 << d;
+		slg.lfield[d] |= ps->dm[d] & wl;
+		slg.lfield[d].Set_c(c);// be sure to have single
 	}
-	for (int ibc = 0; ibc < 3; ibc++) {
-		int c = cb[ibc], v0 = vb[ibc], vf = vv[ibc];
-		if (vf != v0) {// one or more digits to clear in c
-			ps->CleanCell(c, (v0 & ~vf));
-			iret++;
-		}
+
+}
+
+int SER62::Go75bsB() {// 4 cells possible seen quad
+	// try each digit of v4 see if digits to clear
+	slg.InitFromSolve();	memset(slg.orf, 0, sizeof slg.orf);
+	AddCell(cx); AddCell(cy); AddCell(cz); AddCell(cz4);
+	//slg.Status(1);
+	if(slg.Expand_sc_ld(0)) {
+#ifdef SEROUT
+		wbs4c.SetAll_0(); wbs4c.Set_c(cx);
+		wbs4c.Set_c(cy); wbs4c.Set_c(cz); wbs4c.Set_c(cz4);
+		cout << Char9out(v4);	NameBf128List(" active four cells ", wbs4c);
+		slg.DumpElims();
+#endif
+		return 1;
 	}
-	return iret;
+	return 0;
+
+}
+
+int SOLV81::DoEr75(){//aligned triplet exclusion
+	return ser62.Go75(this);
 }

@@ -27,10 +27,19 @@ ______________________________
 a,b,...n are the cells of the set
 steps[] = { 4, 6, 8, 12,
 here up to 3 cells (mini row/mini column) can see the target
+=================  strategy used
+the process is done in three steps 
+a) find sets having enough links to bi values (limit size)
+b) expand and see if some elims come
+c) redo expand for each possible target and get size of the path
+
+a cell has a minimum of 2*4+2=10 length -> rating 83
+a digit set has a minimum of 4+2+2=8 length rating 82
+
 */
 
 struct ER7MUL {
-	DM9 start_cands,*curexpand;
+	//============ sets hitting enough bi values
 	struct CELLSTOSEE {
 		int c, d_no_biv, nmin;
 		inline void Add(int ce, int de, int n) {
@@ -43,9 +52,26 @@ struct ER7MUL {
 			d = de; u = ue; u_no_biv = unb, nmin = n;
 		}
 	}du_to_see[100];
+	//============ sets with elims seen	
+	struct CTSELIMS {
+		DM9 elims;
+		int icts;
+		void Add(int i, DM9& x) { icts = i; elims = x; }
+	}ctselims[50];
+	struct DTSELIMS {
+		DM9 elims;
+		int iduts;
+		void Add(int i, DM9& x) { iduts = i; elims = x; }
+	}dtselims[100];
+	//=== storing all elims <= target count searched
+	struct STORE_ELIMS {
+		int ct, dt,nt;// target and count
+		int c, d, u; // cell or digit unit (c=-1)
+	}store_elims[50];
+
+
 	struct XYSM {
-		CDPM cdpm;
-		DM9 pmseen;
+		DM9 cdpm;
 		CAND cand1, cand2;
 		int ispot;
 		void Init(XYSM& o) {
@@ -54,30 +80,47 @@ struct ER7MUL {
 		}
 		void DoStep();
 		void DoNewD(int da, int ca);
+		void InitCell(int c, int v) {
+			memset(this, 0, sizeof XYSM);
+			for (int i = 0; i < 9; i++)cdpm.Set(i, c);// lock cell
+			cand1.Set(0, c); cand2 = cand1;
+		}
+		void InitDigitUnit(int d, int u,BF128 x) {
+			memset(this, 0, sizeof XYSM);
+			cdpm.Ordx(d, x);// be sure not to use it
+			cand1.Set(d, 82); cand2 = cand1;// dummy cell as first
+		}
 	}xysm[20];
-
 	struct CAND_VIEW {
 		BF128 cbiv, dbiv;
 		int dig, cell;
 	}cview[200];
+	//======== one set one elim== result
+
 	SOLV81* ps;
-	int nc_to_see, ndu_to_see,cur_d,cur_c,cur_u;
+	DM9 start_cands, curexpand;
+	int nc_to_see, ndu_to_see,
+		ncts_elims,ndts_elims,
+		modetarget,ctarget,dtarget,ntarget,
+		cur_ntarget,nstore_elims;
 	int dbus[9];// digit biv units 
 	void Init();// find sets of interest
 	void AddCells(BF128 x);
 	void AddDU(int s1, int s2);
+	void FindElims();
+	void FindTargets();
+	int SeeCell(CELLSTOSEE& cts, int sm);
+	int SeeDset(DUSTOSEE& duts, int sm);
+	int SeeC_to_T(int c,int d, int t);
+	//int SeeDset(DUSTOSEE& duts, int sm);
+	void TargetSeen(int ispot);
 }er7mul;
 
 
-int SOLV81::DoEr80() {//multi chains 
-	cout << "entry new DoEr80()  "  << endl;
-	int iret = 0;
-	er7mul.Init();
-	return 0;
 
-}
 
 void ER7MUL::AddCells(BF128 cw) {
+	cout << " er80 add cells" << endl;
 	DM9 wdm9;
 	int c, dnobiv = -1;
 	while ((c = cw.getFirstCell()) >= 0) {
@@ -94,34 +137,48 @@ void ER7MUL::AddCells(BF128 cw) {
 		}
 		if (nobiv > 1)continue;
 		start_cands.Orx(wdm9);
-		cout << cell_names[c] << " to see nobiv=" << nobiv << " nd=" << nd << endl;
+		cout << cell_names[c] << " to see nobiv=" << nobiv << " nd=" << nd 
+			<< " n=" << nc_to_see << endl;
 		c_to_see[nc_to_see++].Add(c, dnobiv, 4 * nd - 2 * nobiv);
 	}
 }
-void ER7MUL::AddDU(int s1, int s2) {
+void ER7MUL::AddDU(int s1, int s2) {// s1 s2 size sets  used
+	cout << " er80 add du  s1 s2 " <<s1 <<s2 << endl;
 	DM9 wdm9;
 	for (int idig = 0; idig < 9; idig++) {
+#ifdef SEROUT	
+		cout << "dig " << idig + 1 << endl;
+		ps->ImageOne(idig);
+#endif
 		DSETS& ds = solve.sets.ds[idig];
-		uint32_t* ds234m = ds.d234m.bf.u32, iu, c,	dsw = 0;
+		uint32_t* ds234m = ds.d234m.bf.u32;
+		int iu, c, dsw = 0,dswr;
 		for (int i = s1; i <= s2; i++)dsw |= ds234m[i];
-		if (dsw)			cout << Char27out(dsw) << " sets for digit " << idig + 1;
+		if (dsw)			cout << Char27out(dsw) << " sets for digit " << idig + 1 << endl;
+		dswr = dsw; 
 		while (dsw) {
 			bitscanforward(iu, dsw); dsw ^= (1 << iu);
+			//cout << " try unit " << iu + 1 << endl;
 			BF128 wdu = ps->dm[idig] & units3xBM[iu], x = wdu;
+
 			wdm9.Init();
-			int nobiv = 0, unit_nobiv = 0777777777, nc = x.Count96();
-			while ((c = x.getFirstCell()) >= 0) {
+			int nobiv = 0, 
+				unit_nobiv = dswr& ~(1<<iu), // must have a not empy set seen not given set
+				nc = x.Count96();
+			while ((c = x.getFirstCell())>=0) {
 				x.Clear_c(c);
 				BF128 wd = ps->dm[idig] & cell_z3x[c],
 					wdb = wd & (xybiv.cset_d[idig] | xybiv.dig_nodes[idig]);
 				if (wdb.isEmpty()) {
-					nobiv++; unit_nobiv &= tcellsrcb[c];	continue;
+					nobiv++; unit_nobiv &= tcellsrcb[c];	
+					continue;
 				}
 				wdm9.Ordx(idig, wdb);
 			}
 			if (!unit_nobiv) continue;
+			if (nc == 3 && nobiv == 3) continue;// triplet in one mini row
 			start_cands.Orx(wdm9);
-			cout << " d " << idig + 1 << " unit " << iu + 1 << " to see nobiv=" << nobiv << " nc=" << nc << endl;
+			cout << Char27out(unit_nobiv) << " d " << idig + 1 << " unit " << iu + 1 << " to see nobiv=" << nobiv << " nc=" << nc << endl;
 			du_to_see[ndu_to_see++].Add(idig, iu, unit_nobiv, 4 * nc - 2 * nobiv);
 		}
 	}
@@ -154,7 +211,14 @@ void ER7MUL::XYSM::DoStep() {
 	BF128 wd = (p.dm[d] & cell_z3x[c]),
 		wdc = wd & p.ccm[1],
 		wdd = wd & xybiv.dig_nodes[d];
-	er7mul.curexpand->Ordx(d, wd);// update seen
+	if (er7mul.modetarget) {
+		if (d == er7mul.dtarget && wd.On_c(er7mul.ctarget)) {
+
+		}
+
+	}
+
+	else er7mul.curexpand.Ordx(d, wd);// update seen
 	// new  digit biv seen 
 	if (wdd.isNotEmpty()) {
 		int c2;
@@ -188,7 +252,6 @@ void ER7MUL::XYSM::DoStep() {
 		}
 	}
 }
-
 void  ER7MUL::XYSM::DoNewD(int da, int ca) {
 	cand1.Set(da, ca); if (cdpm.On(cand1)) return;
 	SOLV81& p = *er7mul.ps;
@@ -202,4 +265,104 @@ void  ER7MUL::XYSM::DoNewD(int da, int ca) {
 		if (units) //it is a bi value, do next step
 			(this + 1)->DoStep();		
 	}
+}
+
+
+void ER7MUL::FindElims() {
+	ncts_elims = ndts_elims = modetarget = 0;
+	for (int ice = 0; ice < nc_to_see; ice++) {
+		if (SeeCell(c_to_see[ice], 100))
+			ctselims[ncts_elims].Add(ice, curexpand);
+	}
+	for (int idu = 0; idu < nc_to_see; idu++) {
+		if (SeeDset(du_to_see[idu], 100))
+			dtselims[ndts_elims].Add(idu, curexpand);
+	}
+}
+int ER7MUL::SeeCell(CELLSTOSEE& cts, int sm){
+	if (sm < cts.nmin) return 0;
+	int c = cts.c;
+	int v = ps->cells[c],x=v,d;
+	xysm[0].InitCell(c, v);
+	DM9 killed; killed.InitAll();
+	while (x ) {
+		bitscanforward(d, x); x ^= 1 << d;
+		curexpand.Init();// to get all seen
+		xysm[0].cand2.Set(d, c);
+		xysm[1].DoStep();
+		killed.Andx(curexpand);
+		if (killed.IsEmpty())return 0;
+	}
+	// elims seen find the shortest ans see
+	return 0;
+}
+int ER7MUL::SeeDset(DUSTOSEE& duts, int sm) {
+	if (sm < duts.nmin) return 0;
+	int idig = duts.d, iu = duts.u, c;
+	BF128 wdu = ps->dm[idig] & units3xBM[iu], x = wdu;
+	xysm[0].InitDigitUnit(idig, iu, x);
+	DM9 killed; killed.InitAll();
+	while ((c = x.getFirstCell()) >= 0) {
+		x.Clear_c(c);
+		curexpand.Init();// to get all seen
+		xysm[0].cand2.Set(idig, c);
+		xysm[1].DoStep();
+		killed.Andx(curexpand);
+		if (killed.IsEmpty())return 0;
+	}
+	// elims seen find the shortest ans see
+	return 0;
+}
+
+void ER7MUL::FindTargets() {
+	ncts_elims = ndts_elims = 0;
+	cur_ntarget = 100;// max _target searched in this step
+	nstore_elims=0;
+	modetarget = 1;
+	for (int icef = 0; icef < ncts_elims; icef++) {
+		CTSELIMS cts = ctselims[icef];
+		int ice = cts.icts,c= c_to_see[ice].c,t;
+		DM9& wdm9 = cts.elims;
+		for (int idig = 0; idig < 9; idig++) {
+			BF128 wd = wdm9.Getd(idig);
+			while ((t = wd.getFirstCell()) >= 0) {
+				wd.Clear_c(t);// target d,t
+				// for cell c compute length to target d,t
+			}
+		}
+	}
+	for (int idu = 0; idu < nc_to_see; idu++) {
+		if (SeeDset(du_to_see[idu], 100))
+			dtselims[ndts_elims].Add(idu, curexpand);
+	}
+}
+int ER7MUL::SeeC_to_T(int c, int dt, int t) {
+	ctarget = t; dtarget = dt; ntarget = 1;
+	int v = ps->cells[c], x = v, d;
+	// Init count clearing directly seen
+	if (ps->dm[dt].On_c(c)) {
+		ntarget += 1;	x ^= 1 << d;	}
+	xysm[0].InitCell(c, v);
+	while (x) {
+		bitscanforward(d, x); x ^= 1 << d;
+		xysm[1].DoStep();
+
+	}
+	if (ntarget > cur_ntarget) return 0;//too long
+
+	return 0;
+}
+
+
+void ER7MUL::TargetSeen(int ispot) {
+	ntarget += 2 * ispot;
+	//length= 1+2*ispot-1+1=2*ispot
+}
+int SOLV81::DoEr80() {//multi chains 
+	cout << "entry new DoEr80()  " << endl;
+	int iret = 0;
+	er7mul.Init();
+	cout << "end current er80" << endl;
+	return 0;
+
 }

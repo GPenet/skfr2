@@ -121,6 +121,7 @@ struct SERATE {
 #include "skfr2d_solveSerate_ychain.h" 
 #include "skfr2d_xybiv.h"
 #include "skfr2d_xybiv_multi.h"
+#include "skfr2e_z85_dynamic.h"
 
 
 void SOLVE::SolveSerate(char* ze) {
@@ -224,7 +225,6 @@ void SOLVE::SolveSerate(char* ze) {
 			if (serate.isybiv && sv81w.DoEr6ycy(66)) continue;
 			if (serate.activedigits && sv81w.DoEr6x(67)) continue;
 			if (serate.isybiv && sv81w.DoEr6ycy(67)) continue;
-			//if (serate.isybiv && sv81w.DoEr6ych(67)) continue;
 			if (serate.activedigits && sv81w.DoEr6x(68)) continue;
 			if (serate.isybiv && sv81w.DoEr6ych(68)) continue;
 			if (serate.isybiv && sv81w.DoEr6ycy(68)) continue;
@@ -237,7 +237,6 @@ void SOLVE::SolveSerate(char* ze) {
 		// entries XY bi values 
 		{
 			if (sv81w.DoEr70()) continue;
-			if (sv81w.DoEr7x(71)) continue;
 
 		}
 		// entry triplet Nishio
@@ -248,7 +247,9 @@ void SOLVE::SolveSerate(char* ze) {
 		break;
 		if (0) {
 			if (sv81w.DoEr80()) continue;// multi
-		}
+			//if (sv81w.DoER85()) continue;// dynamic
+
+	}
 				
 		break; // not solved 
 	}
@@ -1075,7 +1076,3 @@ int SOLV81::DoEr54() {// hidden_triplet
 int SOLV81::DoEr70() {
 	return xybiv.Init();
 }
-int SOLV81::DoEr7x(int rat) {
-	if(rat==71) 	return xybiv.Er71();
-	return 0;
-} 

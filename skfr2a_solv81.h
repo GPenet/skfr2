@@ -88,12 +88,14 @@ struct SOLV81 {
 	int DoEr6ycy(int rat);// y cycle  
 	int DoEr6ych(int rat);// y chains  
 	int DoEr70();// init xy chains  and look for ER70
-	int DoEr7x(int rat );//  xy chains  >70
-
 	int DoEr75();//aligned triplet
 	int DoEr75X();//Nishio
 
 	int DoEr80();//multichains
+	int DoER85();// dynamic chains
+	int DoER85_TE_1_2(SOLV81&o,int d,int c);
+	int DoER85LastInTE();
+
 /*
 AIC_X_cycle=65,
 	Forcing_ChainX=66,          ///<  at least 6.6 6.7 f(length)
@@ -108,7 +110,7 @@ AIC_X_cycle=65,
 	
 	//==== multi floors
 	int DoLastInUnitMF(int f); 
-	int GetMinMF(int& f, int& unit, int& digit);
+	//int GetMinMF(int& f, int& unit, int& digit);
 	// check if valid
 	int Conflict() {
 		for(int i=0;i<81;i++)	if (!cells[i]) {
